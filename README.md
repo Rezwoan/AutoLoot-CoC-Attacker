@@ -274,17 +274,6 @@ Make sure:
 
 ---
 
-## 📝 License
-
-Add whatever license you prefer here, for example:
-
-```text
-MIT License
-
-[... your license text ...]
-```
-
----
 
 ## 🙌 Credits
 
