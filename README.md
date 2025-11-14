@@ -1,0 +1,1 @@
+"# AutoLoot-CoC-Attacker" 
