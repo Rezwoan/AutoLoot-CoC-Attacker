@@ -1,18 +1,18 @@
+import os
 import time
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import pyautogui
 
-# Import the game status helper from your imageRec.py
-# Make sure imageRec.py is in the same folder.
 from imageRec import get_game_status
+from location_cache import load_locations, save_locations
 
 # ============================================
 #  PyAutoGUI Global Settings
 # ============================================
 
-pyautogui.FAILSAFE = True      # Move mouse to a screen corner to abort
-pyautogui.PAUSE = 0.05         # Small delay between actions
+pyautogui.FAILSAFE = True
+pyautogui.PAUSE = 0.05
 
 
 # ============================================
@@ -22,20 +22,7 @@ pyautogui.PAUSE = 0.05         # Small delay between actions
 SCREEN_WIDTH  = 1920
 SCREEN_HEIGHT = 1200
 
-SCREEN_TOP_LEFT     = (0, 0)
-SCREEN_TOP_RIGHT    = (SCREEN_WIDTH - 1, 0)
-SCREEN_BOTTOM_LEFT  = (0, SCREEN_HEIGHT - 1)
-SCREEN_BOTTOM_RIGHT = (SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1)
-
-# Old edges (kept for reference if needed)
-EDGE_LEFT   = (173, 564)
-EDGE_RIGHT  = (1737, 568)
-
-BOTTOM_CENTER_1 = (999, 1071)
-BOTTOM_CENTER_2 = (912, 1067)
-BOTTOM_UPPER    = (1075, 1040)
-
-# NEW deployment geometry
+# Battlefield edges for deployments
 LEFT_LEFT    = (181, 592)
 LEFT_BOTTOM  = (823, 1075)
 RIGHT_BOTTOM = (1156, 1075)
@@ -43,14 +30,26 @@ RIGHT_RIGHT  = (1787, 590)
 RIGHT_UP     = (1070, 60)
 LEFT_UP      = (878, 70)
 
+# Bottom bar search region (for troops/spells/heroes/siege)
+# 1 = (476,1087), 2 = (473,1192), 3 = (1435,1189), 4 = (1433,1086)
+BAR_LEFT   = 473
+BAR_TOP    = 1086
+BAR_RIGHT  = 1435
+BAR_BOTTOM = 1192
+BAR_WIDTH  = BAR_RIGHT - BAR_LEFT     # 962
+BAR_HEIGHT = BAR_BOTTOM - BAR_TOP     # 106
+BAR_REGION = (BAR_LEFT, BAR_TOP, BAR_WIDTH, BAR_HEIGHT)
+
 
 # ============================================
-#  Buttons (Screen UI)
+#  Buttons (fixed screen UI)
 # ============================================
 
-ATTACK_BUTTON      = (126, 1092)
-FIND_MATCH         = (301, 847)
-NEXT_BUTTON        = (1780, 988)     # (detection done in imageRec via template)
+ATTACK_MENU_BUTTON = (126, 1092)   # Home screen attack button
+FIND_MATCH_BUTTON  = (301, 847)    # "Find a Match" in the attack menu
+ATTACK_BUTTON      = (1646, 988)   # Troop selection Attack button
+
+NEXT_BUTTON        = (1780, 988)   # Used only for detection via imageRec
 
 SURRENDER_BUTTON   = (117, 1021)
 CONFIRM_OK_BUTTON  = (1170, 763)
@@ -58,16 +57,101 @@ RETURN_HOME_BUTTON = (945, 1025)
 
 
 # ============================================
-#  Troop/Spell/Hero Bar Slots (bottom bar)
+#  Paths & image names
 # ============================================
 
-VALKARIE_BUTTON      = (520, 1140)
-SIEGE_BUTTON         = (617, 1132)
-HERO1_BUTTON         = (711, 1136)   # Grand Warden
-HERO2_BUTTON         = (783, 1146)   # Royal Champion
-EARTHQUAKE_BUTTON    = (888, 1142)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+IMG_DIR    = os.path.join(SCRIPT_DIR, "img")
 
-# Earthquake target positions on battlefield
+# ReturnHome.png is in the ROOT folder (alongside five.png)
+RETURN_HOME_IMAGE_NAME = "ReturnHome.png"
+RETURN_HOME_IMAGE_PATH = os.path.join(SCRIPT_DIR, RETURN_HOME_IMAGE_NAME)
+RETURN_HOME_IMAGE_AVAILABLE = os.path.isfile(RETURN_HOME_IMAGE_PATH)
+if not RETURN_HOME_IMAGE_AVAILABLE:
+    print(f"[WARN] '{RETURN_HOME_IMAGE_NAME}' not found in script folder. "
+          f"Early battle end detection via image will be disabled.")
+
+# Image names inside img/ for bar buttons
+BUTTON_IMAGES = {
+    "valk":        "VALKARIE.png",
+    "siege":       "SIEGE.png",
+    "earthquake":  "EARTHQUAKE.png",
+    "hero_king":   "HERO_KING.png",       # Hero 1
+    "hero_champ":  "HERO_CHAMPION.png",   # Hero 2
+    "hero_minion": "HERO_MINION.png",     # Hero 3
+    "hero_warden": "HERO_WARDEN.png",     # New hero
+}
+
+# Optional fallback positions if detection fails completely
+BUTTON_FALLBACKS = {
+    "valk":        (520, 1140),
+    "siege":       (617, 1132),
+    "earthquake":  (888, 1142),
+    "hero_king":   (711, 1136),
+    "hero_champ":  (783, 1146),
+    "hero_minion": (868, 1145),
+    "hero_warden": (950, 1145),   # guess; mostly used only if detection fails
+}
+
+# ============================================
+#  Location cache (loaded/saved via location_cache.py)
+# ============================================
+
+LOCATION_CACHE = {}
+CACHE_MODE = "use"  # "use" or "update"
+# structure:
+# {
+#   "buttons": {
+#       "valk": [x,y],
+#       "siege": [x,y],
+#       ...
+#   },
+#   "valk_positions": [[x,y], [x,y], ...]
+# }
+
+_missing_image_warned = set()  # avoid spamming warnings per image
+
+
+def init_location_cache_mode():
+    """
+    Load locations_cache.json and ask user whether to use it or update it.
+    """
+    global LOCATION_CACHE, CACHE_MODE
+
+    data = load_locations()
+    if not isinstance(data, dict):
+        data = {}
+
+    data.setdefault("buttons", {})
+    data.setdefault("valk_positions", None)
+
+    LOCATION_CACHE = data
+
+    if LOCATION_CACHE.get("buttons") or LOCATION_CACHE.get("valk_positions"):
+        choice = input(
+            "Use saved button/valk locations from cache file? "
+            "[Y = use saved, anything else = re-detect/update]: "
+        ).strip().lower()
+        if choice == "y":
+            CACHE_MODE = "use"
+            print("[INFO] Using cached locations from file.")
+        else:
+            CACHE_MODE = "update"
+            print("[INFO] Will update cache: buttons/valk positions will be re-detected.")
+    else:
+        CACHE_MODE = "update"
+        print("[INFO] No cached locations found. Will detect and create cache.")
+
+
+def save_location_cache():
+    """Save LOCATION_CACHE dict to JSON file."""
+    save_locations(LOCATION_CACHE)
+
+
+# ============================================
+#  Troop / Spell target positions on battlefield
+# ============================================
+
 LEFT_EARTH   = (635, 567)   # 3 quakes
 RIGHT_EARTH  = (1245, 581)  # 4 quakes
 BUTTON_EARTH = (951, 783)   # 4 quakes
@@ -78,55 +162,130 @@ BUTTON_EARTH = (951, 783)   # 4 quakes
 # ============================================
 
 def move_and_click(x: int, y: int, move_duration: float = 0.1, post_delay: float = 0.05):
-    """Move to (x, y) and click."""
     pyautogui.moveTo(x, y, duration=move_duration)
     pyautogui.click()
     time.sleep(post_delay)
 
 
 # ============================================
+#  Utility: Locate button on bottom bar (limited region)
+# ============================================
+
+def locate_button_center(
+    key: str,
+    confidence: float = 0.8,
+    max_tries: int = 5,
+    retry_delay: float = 0.2
+) -> Optional[Tuple[int, int]]:
+    """
+    Locate a bar button by its image in img/ and return its center (x, y).
+
+    - Searches only within BAR_REGION for speed.
+    - Uses LOCATION_CACHE depending on CACHE_MODE ("use" or "update").
+    - Falls back to BUTTON_FALLBACKS[key] if detection fails.
+    """
+    global LOCATION_CACHE
+
+    buttons = LOCATION_CACHE.setdefault("buttons", {})
+
+    # 1) If we are allowed to use cache and we have it
+    if CACHE_MODE == "use" and key in buttons:
+        pos = buttons[key]
+        if isinstance(pos, (list, tuple)) and len(pos) == 2:
+            return int(pos[0]), int(pos[1])
+
+    image_name = BUTTON_IMAGES.get(key)
+    if not image_name:
+        print(f"[ERROR] No image mapping for key '{key}'.")
+        return None
+
+    image_path = os.path.join(IMG_DIR, image_name)
+
+    # If the image file itself is missing, warn once and fallback
+    if not os.path.isfile(image_path):
+        if image_name not in _missing_image_warned:
+            print(f"[WARN] Image '{image_name}' not found in img/. "
+                  f"Using fallback for '{key}' if available.")
+            _missing_image_warned.add(image_name)
+        fallback = BUTTON_FALLBACKS.get(key)
+        if fallback:
+            return fallback
+        return None
+
+    detected_pos: Optional[Tuple[int, int]] = None
+
+    for _ in range(max_tries):
+        try:
+            box = pyautogui.locateOnScreen(
+                image_path,
+                confidence=confidence,
+                region=BAR_REGION  # restricted search region
+            )
+        except Exception as e:
+            print(f"[WARN] Error locating '{image_name}': {e}")
+            break
+
+        if box:
+            center = pyautogui.center(box)
+            detected_pos = (center.x, center.y)
+            break
+
+        time.sleep(retry_delay)
+
+    if detected_pos:
+        buttons[key] = [int(detected_pos[0]), int(detected_pos[1])]
+        save_location_cache()
+        return detected_pos
+
+    # If detection failed, but cache has an older value, use it
+    if key in buttons:
+        old_pos = buttons[key]
+        if isinstance(old_pos, (list, tuple)) and len(old_pos) == 2:
+            print(f"[WARN] Could not re-detect '{image_name}', using cached value for '{key}': {old_pos}")
+            return int(old_pos[0]), int(old_pos[1])
+
+    # Fall back to hard-coded position if it exists
+    fallback = BUTTON_FALLBACKS.get(key)
+    if fallback:
+        print(f"[WARN] Could not detect '{image_name}' on screen. Using fallback for '{key}': {fallback}")
+        return fallback
+
+    print(f"[ERROR] Could not detect '{image_name}' and no fallback for '{key}'.")
+    return None
+
+
+# ============================================
 #  Utility: Zoom Out for X Seconds
 # ============================================
 
-def center_mouse_and_scroll_out(duration_seconds: float = 2.0, scroll_strength: int = -800):
-    """
-    Moves mouse to the center of the screen and scrolls DOWN continuously
-    for the specified duration to ensure full zoom-out.
-    """
+def center_mouse_and_scroll_out(duration_seconds: float = 1.2, scroll_strength: int = -800):
+    print("[INFO] Zooming out...")
     center_x = SCREEN_WIDTH // 2
     center_y = SCREEN_HEIGHT // 2
+    pyautogui.moveTo(center_x, center_y, duration=0.2)
 
-    print(f"[INFO] Moving mouse to center: ({center_x}, {center_y})")
-    pyautogui.moveTo(center_x, center_y, duration=0.3)
-
-    print(f"[INFO] Zooming OUT for {duration_seconds} seconds...")
     start_time = time.time()
-
     while time.time() - start_time < duration_seconds:
         pyautogui.scroll(scroll_strength)
-        time.sleep(0.03)
-
-    print("[INFO] Zoom-out complete.")
+        time.sleep(0.02)
 
 
 # ============================================
-#  Click Attack → Find Match
+#  Click Attack → Find Match → Troop Attack
 # ============================================
 
 def click_attack_and_find_match():
-    """
-    Navigates the CoC home screen:
-    - Clicks the Attack button
-    - Waits for the Attack menu to appear
-    - Clicks Find Match
-    """
-    print("[INFO] Clicking Attack button...")
-    move_and_click(ATTACK_BUTTON[0], ATTACK_BUTTON[1], move_duration=0.25, post_delay=1.5)
+    print("[INFO] Opening attack menu...")
+    move_and_click(ATTACK_MENU_BUTTON[0], ATTACK_MENU_BUTTON[1],
+                   move_duration=0.18, post_delay=0.7)
 
-    print("[INFO] Clicking Find Match...")
-    move_and_click(FIND_MATCH[0], FIND_MATCH[1], move_duration=0.25, post_delay=3.0)
+    print("[INFO] Clicking Find a Match...")
+    move_and_click(FIND_MATCH_BUTTON[0], FIND_MATCH_BUTTON[1],
+                   move_duration=0.18, post_delay=0.7)
 
-    print("[INFO] Searching for base...")
+    print("[INFO] Confirming troops & starting search...")
+    move_and_click(ATTACK_BUTTON[0], ATTACK_BUTTON[1],
+                   move_duration=0.18, post_delay=1.5)
 
 
 # ============================================
@@ -134,19 +293,12 @@ def click_attack_and_find_match():
 # ============================================
 
 def wait_for_base_found(timeout_seconds: float = 60.0, poll_interval: float = 0.5) -> bool:
-    """
-    Uses get_game_status() from imageRec to wait until NEXT button is visible,
-    meaning a base has been found.
-
-    Returns True if base found within timeout, False otherwise.
-    """
-    print(f"[INFO] Waiting for base (NEXT button) for up to {timeout_seconds} seconds...")
-
+    print("[INFO] Waiting for base...")
     start = time.time()
     while time.time() - start < timeout_seconds:
         status = get_game_status()
         if status.get("next_button"):
-            print("[INFO] Base found! NEXT button detected.")
+            print("[INFO] Base found.")
             return True
         time.sleep(poll_interval)
 
@@ -159,36 +311,27 @@ def wait_for_base_found(timeout_seconds: float = 60.0, poll_interval: float = 0.
 # ============================================
 
 def cast_earthquakes():
-    """
-    Casts earthquakes using the bar slot:
-        - Click EARTHQUAKE_BUTTON to select quake spell
-        - 3 clicks at LEFT_EARTH
-        - 4 clicks at RIGHT_EARTH
-        - 4 clicks at BUTTON_EARTH
-    """
-    print("[INFO] Casting Earthquake spells...")
+    print("[INFO] Deploying Earthquakes...")
 
-    # Select earthquake spell from bar
-    print(f"  [SELECT] Earthquake slot at {EARTHQUAKE_BUTTON}")
-    move_and_click(EARTHQUAKE_BUTTON[0], EARTHQUAKE_BUTTON[1],
-                   move_duration=0.15, post_delay=0.25)
+    earth_btn = locate_button_center("earthquake")
+    if not earth_btn:
+        print("[ERROR] Cannot deploy Earthquakes (button not found).")
+        return
 
-    # 3 quakes at LEFT_EARTH
-    for i in range(3):
-        print(f"  [EARTH] LEFT {i+1}/3 at {LEFT_EARTH}")
-        move_and_click(LEFT_EARTH[0], LEFT_EARTH[1], move_duration=0.1, post_delay=0.15)
+    move_and_click(earth_btn[0], earth_btn[1],
+                   move_duration=0.1, post_delay=0.15)
 
-    # 4 quakes at RIGHT_EARTH
-    for i in range(4):
-        print(f"  [EARTH] RIGHT {i+1}/4 at {RIGHT_EARTH}")
-        move_and_click(RIGHT_EARTH[0], RIGHT_EARTH[1], move_duration=0.1, post_delay=0.15)
+    for _ in range(3):
+        move_and_click(LEFT_EARTH[0], LEFT_EARTH[1],
+                       move_duration=0.06, post_delay=0.08)
 
-    # 4 quakes at BUTTON_EARTH
-    for i in range(4):
-        print(f"  [EARTH] BUTTON {i+1}/4 at {BUTTON_EARTH}")
-        move_and_click(BUTTON_EARTH[0], BUTTON_EARTH[1], move_duration=0.1, post_delay=0.15)
+    for _ in range(4):
+        move_and_click(RIGHT_EARTH[0], RIGHT_EARTH[1],
+                       move_duration=0.06, post_delay=0.08)
 
-    print("[INFO] Earthquake spells deployed.")
+    for _ in range(4):
+        move_and_click(BUTTON_EARTH[0], BUTTON_EARTH[1],
+                       move_duration=0.06, post_delay=0.08)
 
 
 # ============================================
@@ -196,19 +339,17 @@ def cast_earthquakes():
 # ============================================
 
 def deploy_siege_machine():
-    """
-    Select siege machine from bar (SIEGE_BUTTON) and drop it on LEFT_LEFT.
-    """
     print("[INFO] Deploying Siege Machine...")
 
-    # Select siege from bar
-    print(f"  [SELECT] Siege slot at {SIEGE_BUTTON}")
-    move_and_click(SIEGE_BUTTON[0], SIEGE_BUTTON[1],
-                   move_duration=0.15, post_delay=0.25)
+    siege_btn = locate_button_center("siege")
+    if not siege_btn:
+        print("[ERROR] Cannot deploy Siege Machine (button not found).")
+        return
 
-    # Drop on left side of base
-    move_and_click(LEFT_LEFT[0], LEFT_LEFT[1], move_duration=0.25, post_delay=0.3)
-    print(f"[INFO] Siege Machine deployed at LEFT_LEFT: {LEFT_LEFT}.")
+    move_and_click(siege_btn[0], siege_btn[1],
+                   move_duration=0.1, post_delay=0.15)
+    move_and_click(LEFT_LEFT[0], LEFT_LEFT[1],
+                   move_duration=0.16, post_delay=0.2)
 
 
 # ============================================
@@ -217,10 +358,8 @@ def deploy_siege_machine():
 
 Point = Tuple[int, int]
 
+
 def generate_points_on_segment(start: Point, end: Point, num_points: int) -> List[Point]:
-    """
-    Returns 'num_points' evenly spaced points from start -> end (inclusive).
-    """
     if num_points <= 1:
         return [start]
 
@@ -233,28 +372,15 @@ def generate_points_on_segment(start: Point, end: Point, num_points: int) -> Lis
     return points
 
 
-def generate_valk_positions() -> List[Point]:
-    """
-    Generates ~42 positions along these four lines:
-        1) LEFT_BOTTOM  -> LEFT_LEFT
-        2) LEFT_LEFT    -> LEFT_UP
-        3) RIGHT_UP     -> RIGHT_RIGHT
-        4) RIGHT_RIGHT  -> RIGHT_BOTTOM
-
-    We allocate points per segment as [12, 11, 11, 11] and avoid
-    duplicating the shared endpoints between segments, so total
-    unique positions = 42.
-    """
+def generate_valk_positions_raw() -> List[Point]:
     segments = [
-        (LEFT_BOTTOM, LEFT_LEFT),   # seg 0
-        (LEFT_LEFT, LEFT_UP),       # seg 1
-        (RIGHT_UP, RIGHT_RIGHT),    # seg 2
-        (RIGHT_RIGHT, RIGHT_BOTTOM) # seg 3
+        (LEFT_BOTTOM, LEFT_LEFT),
+        (LEFT_LEFT, LEFT_UP),
+        (RIGHT_UP, RIGHT_RIGHT),
+        (RIGHT_RIGHT, RIGHT_BOTTOM),
     ]
 
-    # Number of interpolation samples per segment
-    # sum = 45 → after skipping overlapping endpoints, we get 42 points
-    seg_point_counts = [12, 11, 11, 11]
+    seg_point_counts = [12, 11, 11, 11]  # total 45, with overlaps removed → 42
 
     positions: List[Point] = []
 
@@ -263,42 +389,50 @@ def generate_valk_positions() -> List[Point]:
         seg_points = generate_points_on_segment((x1, y1), (x2, y2), n)
 
         if seg_idx > 0:
-            # Skip the first point of this segment to avoid duplicates
-            seg_points = seg_points[1:]
+            seg_points = seg_points[1:]  # avoid duplicate endpoints
 
         positions.extend(seg_points)
 
-    print(f"[DEBUG] Generated {len(positions)} Valkyrie positions.")
     return positions
 
 
-def deploy_valkyries(num_valks: int = 42, click_delay: float = 0.12):
+def get_valk_positions() -> List[Point]:
     """
-    Deploys Valkyries along the four lines described above.
+    Returns Valkyrie deployment points, possibly cached in LOCATION_CACHE.
+    """
+    global LOCATION_CACHE
 
-    Steps:
-        - Generates positions along the lines.
-        - Clicks VALKARIE_BUTTON to select Valkyries.
-        - Clicks on up to 'num_valks' positions.
-    """
-    all_positions = generate_valk_positions()
+    cached = LOCATION_CACHE.get("valk_positions")
+    if CACHE_MODE == "use" and cached:
+        try:
+            return [(int(x), int(y)) for x, y in cached]
+        except Exception:
+            pass  # fall back to recompute
+
+    pos = generate_valk_positions_raw()
+    LOCATION_CACHE["valk_positions"] = [[int(x), int(y)] for (x, y) in pos]
+    save_location_cache()
+    return pos
+
+
+def deploy_valkyries(num_valks: int = 42, click_delay: float = 0.05):
+    print("[INFO] Deploying Valkyries...")
+
+    valk_btn = locate_button_center("valk")
+    if not valk_btn:
+        print("[ERROR] Cannot deploy Valkyries (button not found).")
+        return
+
+    all_positions = get_valk_positions()
     total_positions = len(all_positions)
-
     deploy_count = min(num_valks, total_positions)
 
-    print(f"[INFO] Deploying {deploy_count} Valkyries (have {num_valks}, {total_positions} positions).")
-
-    # Select valkyries from bar
-    print(f"  [SELECT] Valkarie slot at {VALKARIE_BUTTON}")
-    move_and_click(VALKARIE_BUTTON[0], VALKARIE_BUTTON[1],
-                   move_duration=0.15, post_delay=0.25)
+    move_and_click(valk_btn[0], valk_btn[1],
+                   move_duration=0.1, post_delay=0.15)
 
     for idx in range(deploy_count):
         x, y = all_positions[idx]
-        print(f"  [VALK] {idx+1}/{deploy_count} at ({x}, {y})")
-        move_and_click(x, y, move_duration=0.08, post_delay=click_delay)
-
-    print("[INFO] Valkyrie deployment complete.")
+        move_and_click(x, y, move_duration=0.05, post_delay=click_delay)
 
 
 # ============================================
@@ -307,80 +441,140 @@ def deploy_valkyries(num_valks: int = 42, click_delay: float = 0.12):
 
 def deploy_heroes():
     """
-    Deploys two heroes:
-        - Hero1 (Grand Warden) at midpoint of LEFT_LEFT -> LEFT_BOTTOM
-        - Hero2 (Champion) at midpoint of RIGHT_RIGHT -> RIGHT_BOTTOM
+    Deploys up to four heroes using image detection.
+    If any hero is not found (e.g., upgrading), it is simply skipped.
+
+    Left side (midpoint of LEFT_LEFT -> LEFT_BOTTOM):
+        - hero_king
+        - hero_warden
+
+    Right side (midpoint of RIGHT_RIGHT -> RIGHT_BOTTOM):
+        - hero_champ
+        - hero_minion
     """
     print("[INFO] Deploying heroes...")
 
-    # Midpoint between LEFT_LEFT and LEFT_BOTTOM
-    hero1_x = (LEFT_LEFT[0] + LEFT_BOTTOM[0]) // 2
-    hero1_y = (LEFT_LEFT[1] + LEFT_BOTTOM[1]) // 2
+    hero_king   = locate_button_center("hero_king")
+    hero_champ  = locate_button_center("hero_champ")
+    hero_minion = locate_button_center("hero_minion")
+    hero_warden = locate_button_center("hero_warden")
 
-    # Midpoint between RIGHT_RIGHT and RIGHT_BOTTOM
-    hero2_x = (RIGHT_RIGHT[0] + RIGHT_BOTTOM[0]) // 2
-    hero2_y = (RIGHT_RIGHT[1] + RIGHT_BOTTOM[1]) // 2
+    left_mid_x = (LEFT_LEFT[0] + LEFT_BOTTOM[0]) // 2
+    left_mid_y = (LEFT_LEFT[1] + LEFT_BOTTOM[1]) // 2
 
-    # Deploy Hero 1 (Grand Warden)
-    print(f"  [SELECT HERO1] Bar slot at {HERO1_BUTTON}")
-    move_and_click(HERO1_BUTTON[0], HERO1_BUTTON[1],
-                   move_duration=0.15, post_delay=0.25)
-    print(f"  [HERO1] Deploy at ({hero1_x}, {hero1_y})")
-    move_and_click(hero1_x, hero1_y, move_duration=0.2, post_delay=0.3)
+    right_mid_x = (RIGHT_RIGHT[0] + RIGHT_BOTTOM[0]) // 2
+    right_mid_y = (RIGHT_RIGHT[1] + RIGHT_BOTTOM[1]) // 2
 
-    # Deploy Hero 2 (Champion)
-    print(f"  [SELECT HERO2] Bar slot at {HERO2_BUTTON}")
-    move_and_click(HERO2_BUTTON[0], HERO2_BUTTON[1],
-                   move_duration=0.15, post_delay=0.25)
-    print(f"  [HERO2] Deploy at ({hero2_x}, {hero2_y})")
-    move_and_click(hero2_x, hero2_y, move_duration=0.2, post_delay=0.3)
+    # Left side heroes
+    if hero_king:
+        move_and_click(hero_king[0], hero_king[1],
+                       move_duration=0.1, post_delay=0.15)
+        move_and_click(left_mid_x, left_mid_y,
+                       move_duration=0.16, post_delay=0.15)
 
-    print("[INFO] Heroes deployed.")
+    if hero_warden:
+        move_and_click(hero_warden[0], hero_warden[1],
+                       move_duration=0.1, post_delay=0.15)
+        move_and_click(left_mid_x, left_mid_y,
+                       move_duration=0.16, post_delay=0.15)
+
+    # Right side heroes
+    if hero_champ:
+        move_and_click(hero_champ[0], hero_champ[1],
+                       move_duration=0.1, post_delay=0.15)
+        move_and_click(right_mid_x, right_mid_y,
+                       move_duration=0.16, post_delay=0.15)
+
+    if hero_minion:
+        move_and_click(hero_minion[0], hero_minion[1],
+                       move_duration=0.1, post_delay=0.15)
+        move_and_click(right_mid_x, right_mid_y,
+                       move_duration=0.16, post_delay=0.15)
 
 
-def activate_hero_abilities(delay_before: float = 5.0):
+def activate_hero_abilities(delay_before: float = 0.25):
     """
-    After heroes are on the field, waits a bit and then
-    clicks their bar buttons ONCE AGAIN to trigger abilities.
+    Tries to trigger abilities for any heroes that exist.
+    If a hero button isn't found (e.g., hero under upgrade), it is skipped.
     """
-    print(f"[INFO] Waiting {delay_before} seconds before activating hero abilities...")
-    time.sleep(delay_before)
+    if delay_before > 0:
+        time.sleep(delay_before)
 
-    print("[INFO] Activating hero abilities via bar buttons...")
-    print("  [HERO1 ABILITY] Clicking HERO1_BUTTON again")
-    move_and_click(HERO1_BUTTON[0], HERO1_BUTTON[1],
-                   move_duration=0.15, post_delay=0.2)
+    print("[INFO] Activating hero abilities...")
 
-    print("  [HERO2 ABILITY] Clicking HERO2_BUTTON again")
-    move_and_click(HERO2_BUTTON[0], HERO2_BUTTON[1],
-                   move_duration=0.15, post_delay=0.2)
+    hero_king   = locate_button_center("hero_king")
+    hero_champ  = locate_button_center("hero_champ")
+    hero_minion = locate_button_center("hero_minion")
+    hero_warden = locate_button_center("hero_warden")
 
-    print("[INFO] Hero abilities activated.")
+    if not any([hero_king, hero_champ, hero_minion, hero_warden]):
+        print("[WARN] No hero buttons found to activate abilities.")
+        return
+
+    for btn in [hero_king, hero_warden, hero_champ, hero_minion]:
+        if btn:
+            move_and_click(btn[0], btn[1],
+                           move_duration=0.06, post_delay=0.03)
 
 
 # ============================================
-#  Wait for 50% destruction
+#  Helper: Detect Return Home button by image
 # ============================================
 
-def wait_for_50_percent(max_wait_seconds: float = 120.0, poll_interval: float = 1.0) -> bool:
+def locate_return_home_button(confidence: float = 0.8):
     """
-    Uses get_game_status() to wait until 'fifty_percent' becomes True,
-    or until max_wait_seconds passes.
+    Look for ReturnHome.png on the WHOLE screen.
+    """
+    if not RETURN_HOME_IMAGE_AVAILABLE:
+        return None
 
-    Returns True if 50% detected, False if timed out.
+    try:
+        box = pyautogui.locateOnScreen(RETURN_HOME_IMAGE_PATH, confidence=confidence)
+        return box
+    except Exception as e:
+        print(f"[WARN] Error locating '{RETURN_HOME_IMAGE_NAME}': {e}")
+        return None
+
+
+# ============================================
+#  Wait for 50% destruction OR early Return Home
+# ============================================
+
+def wait_for_50_percent_or_return_home(
+    max_wait_seconds: float = 90.0,
+    poll_interval: float = 0.5
+) -> str:
     """
-    print(f"[INFO] Waiting for 50% destruction (up to {max_wait_seconds} sec)...")
+    Checks BOTH:
+        - get_game_status()['fifty_percent']   (via five.png)
+        - ReturnHome.png on the screen
+
+    If ReturnHome is detected BEFORE 50%, clicks it and returns 'return_home'.
+    If 50% hit first, returns '50%'.
+    After max_wait_seconds (fail-safe 90s), returns 'timeout' so we can
+    surrender and move on instead of hanging forever.
+    """
+    print("[INFO] Waiting for 50% or battle end...")
     start = time.time()
 
     while time.time() - start < max_wait_seconds:
         status = get_game_status()
         if status.get("fifty_percent"):
-            print("[INFO] 50% destruction reached!")
-            return True
+            print("[INFO] 50% destruction reached.")
+            return "50%"
+
+        box = locate_return_home_button(confidence=0.8)
+        if box:
+            center = pyautogui.center(box)
+            print("[INFO] Return Home detected before 50%. Ending battle early.")
+            move_and_click(center.x, center.y,
+                           move_duration=0.22, post_delay=1.5)
+            return "return_home"
+
         time.sleep(poll_interval)
 
-    print("[WARN] 50% not detected within timeout.")
-    return False
+    print("[WARN] 90s timeout waiting for 50% or Return Home.")
+    return "timeout"
 
 
 # ============================================
@@ -388,27 +582,16 @@ def wait_for_50_percent(max_wait_seconds: float = 120.0, poll_interval: float = 
 # ============================================
 
 def end_battle_and_return_home():
-    """
-    Ends the attack by:
-        - Clicking surrender
-        - Confirming OK
-        - Clicking Return Home
-    """
-    print("[INFO] Ending battle...")
+    print("[INFO] Ending battle (surrender)...")
 
-    # Click SURRENDER
-    print("  [SURRENDER] Clicking surrender button...")
-    move_and_click(SURRENDER_BUTTON[0], SURRENDER_BUTTON[1], move_duration=0.25, post_delay=1.0)
+    move_and_click(SURRENDER_BUTTON[0], SURRENDER_BUTTON[1],
+                   move_duration=0.18, post_delay=0.8)
 
-    # Confirm OK
-    print("  [CONFIRM] Clicking OK button...")
-    move_and_click(CONFIRM_OK_BUTTON[0], CONFIRM_OK_BUTTON[1], move_duration=0.25, post_delay=2.0)
+    move_and_click(CONFIRM_OK_BUTTON[0], CONFIRM_OK_BUTTON[1],
+                   move_duration=0.18, post_delay=1.2)
 
-    # Return Home
-    print("  [HOME] Clicking Return Home button...")
-    move_and_click(RETURN_HOME_BUTTON[0], RETURN_HOME_BUTTON[1], move_duration=0.25, post_delay=2.0)
-
-    print("[INFO] Returned to home village.")
+    move_and_click(RETURN_HOME_BUTTON[0], RETURN_HOME_BUTTON[1],
+                   move_duration=0.18, post_delay=1.2)
 
 
 # ============================================
@@ -416,69 +599,50 @@ def end_battle_and_return_home():
 # ============================================
 
 def run_full_attack():
-    """
-    Full sequence for ONE attack:
-        1) Zoom out
-        2) Attack -> Find Match
-        3) Wait for base (NEXT button)
-        4) Small delay so troops bar fully loads
-        5) Deploy spells (earthquake)
-        6) Deploy siege
-        7) Deploy valkyries (up to 42)
-        8) Deploy heroes
-        9) Activate hero abilities (click hero buttons again)
-        10) Wait for 50%
-        11) Surrender and return home
-    """
-    print("[INFO] Starting full attack in 3 seconds... Switch to CoC window now!")
-    time.sleep(3)
+    print("[INFO] Starting attack in 5 seconds... switch to CoC window now.")
+    time.sleep(5)
 
-    # 1) Fully zoom out
-    center_mouse_and_scroll_out(duration_seconds=2.0)
+    center_mouse_and_scroll_out(duration_seconds=1.2)
 
-    # 2) Click Attack → Find Match
     click_attack_and_find_match()
 
-    # 3) Wait for base found (NEXT button)
     base_found = wait_for_base_found(timeout_seconds=60.0, poll_interval=0.5)
 
-    # Extra delay after base is found so UI and troop bar fully load
     if base_found:
-        print("[INFO] Base confirmed. Waiting 1 second for UI to settle before selecting troops/spells.")
-        time.sleep(1.0)
+        print("[INFO] Waiting briefly for base to fully load...")
+        time.sleep(2.5)
     else:
-        # Even if not confirmed, wait a bit before trying anything
         time.sleep(2.0)
 
-    # 4) Earthquakes
     cast_earthquakes()
+    time.sleep(1.0)
 
-    # 5) Siege machine
     deploy_siege_machine()
-
-    # 6) Valkyries
-    deploy_valkyries(num_valks=42, click_delay=0.12)
-
-    # 7) Heroes
+    deploy_valkyries(num_valks=42, click_delay=0.05)
     deploy_heroes()
+    activate_hero_abilities(delay_before=0.25)
 
-    # 8) Hero abilities
-    activate_hero_abilities(delay_before=5.0)
+    # 90s fail-safe; exits early as soon as ReturnHome or 50% is seen
+    battle_status = wait_for_50_percent_or_return_home(max_wait_seconds=90.0,
+                                                       poll_interval=0.5)
 
-    # 9) Wait for 50% destruction
-    wait_for_50_percent(max_wait_seconds=120.0, poll_interval=1.0)
+    if battle_status == "50%":
+        end_battle_and_return_home()
+    elif battle_status == "return_home":
+        print("[INFO] Already back home, no surrender needed.")
+    else:
+        end_battle_and_return_home()
 
-    # 10) End battle and return home
-    end_battle_and_return_home()
-
-    print("[INFO] Attack sequence complete.")
+    print("[INFO] Attack finished.")
 
 
 # ============================================
-#  Main (ask how many attacks)
+#  Main
 # ============================================
 
 def main():
+    init_location_cache_mode()
+
     try:
         user_input = input("How many attacks do you want to run? (default 1): ").strip()
         num_attacks = int(user_input) if user_input else 1
@@ -490,15 +654,14 @@ def main():
         print("[WARN] Non-positive number of attacks, forcing to 1.")
         num_attacks = 1
 
-    print(f"[INFO] Will run {num_attacks} attack(s).")
+    print(f"[INFO] Running {num_attacks} attack(s).")
 
     for i in range(num_attacks):
-        print(f"\n================= ATTACK {i+1}/{num_attacks} =================")
+        print(f"\n========== ATTACK {i+1}/{num_attacks} ==========")
         run_full_attack()
-        # Short pause between attacks in case you need it
         if i < num_attacks - 1:
-            print("[INFO] Preparing for next attack...")
-            time.sleep(3)
+            print("[INFO] Preparing next attack...")
+            time.sleep(1.5)
 
 
 if __name__ == "__main__":
