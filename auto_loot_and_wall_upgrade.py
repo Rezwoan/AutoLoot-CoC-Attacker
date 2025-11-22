@@ -690,12 +690,12 @@ if not WALL_IMAGE_AVAILABLE:
     )
 
 # Tunable parameters
-NUM_WALLS_PER_GOLD_UPGRADE = 4       # how many walls to select for gold upgrade
-NUM_WALLS_PER_ELIXIR_UPGRADE = 4     # how many walls to select for elixir upgrade
+NUM_WALLS_PER_GOLD_UPGRADE = 3       # how many walls to select for gold upgrade
+NUM_WALLS_PER_ELIXIR_UPGRADE = 3     # how many walls to select for elixir upgrade
 
 MAX_WALL_SCROLL_ATTEMPTS = 25        # how many scroll 'ticks' to look for 'Wall'
 SCROLL_AMOUNT_PER_TICK = -350        # negative scroll = scroll DOWN
-SCROLL_DELAY = 0.40                  # pause after each scroll
+SCROLL_DELAY = 0.50                  # pause after each scroll (animation)
 
 
 def locate_wall_by_image(confidence: float = WALL_CONFIDENCE) -> Optional[Point]:
@@ -730,9 +730,15 @@ def find_and_click_wall_entry(max_scrolls: int = MAX_WALL_SCROLL_ATTEMPTS) -> bo
     Scrolls through the upgradables window, trying to find the 'Wall' entry.
 
     After each scroll:
-      - Try image detection (Wall.png) inside UPGRADABLE_REGION
+      - Wait SCROLL_DELAY (0.5s) for animation.
+      - Try image detection (Wall.png) inside UPGRADABLE_REGION.
 
-    Once found, clicks on it and returns True.
+    When a match is found:
+      - Wait 0.5s.
+      - Re-scan to get a fresh location (in case list moved slightly).
+      - Click the final location.
+
+    Once clicked, returns True.
     If not found after max_scrolls scroll steps, returns False.
     """
     if not WALL_IMAGE_AVAILABLE:
@@ -742,16 +748,28 @@ def find_and_click_wall_entry(max_scrolls: int = MAX_WALL_SCROLL_ATTEMPTS) -> bo
     center_x = UPGRADABLE_TOP_LEFT[0] + (UPGRADABLE_BOTTOM_RIGHT[0] - UPGRADABLE_TOP_LEFT[0]) // 2
     center_y = UPGRADABLE_TOP_LEFT[1] + (UPGRADABLE_BOTTOM_RIGHT[1] - UPGRADABLE_TOP_LEFT[1]) // 2
 
-    # Try once before scrolling
     for attempt in range(max_scrolls + 1):
-        pos = locate_wall_by_image(confidence=WALL_CONFIDENCE)
-        if pos:
-            print(f"[UPGRADE] Found 'Wall' entry at {pos} on attempt {attempt}. Clicking...")
-            move_and_click(pos[0], pos[1], move_duration=0.18, post_delay=0.40)
+        # 1) Try to locate wall
+        first_pos = locate_wall_by_image(confidence=WALL_CONFIDENCE)
+        if first_pos:
+            print(f"[UPGRADE] Found 'Wall' entry at {first_pos} on attempt {attempt}.")
+
+            # Re-check after a short delay to avoid clicking a moving target
+            time.sleep(0.5)
+            second_pos = locate_wall_by_image(confidence=WALL_CONFIDENCE)
+
+            if second_pos:
+                final_pos = second_pos
+                print(f"[UPGRADE] Re-checked 'Wall' position at {final_pos} (after delay).")
+            else:
+                final_pos = first_pos
+                print("[UPGRADE] Re-check lost the wall; using first detected position.")
+
+            move_and_click(final_pos[0], final_pos[1], move_duration=0.18, post_delay=0.40)
             return True
 
+        # If not found and we still have scroll attempts left
         if attempt < max_scrolls:
-            # Move mouse into the list window and scroll a bit
             pyautogui.moveTo(center_x, center_y, duration=0.10)
             pyautogui.scroll(SCROLL_AMOUNT_PER_TICK)
             time.sleep(SCROLL_DELAY)
