@@ -1,9 +1,11 @@
 import json
 import os
 
-# JSON file that will store detected locations
-CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "locations_cache.json")
+# JSON file stored in the project root (one level above this module's directory)
+CACHE_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "locations_cache.json"
+)
 
 
 def load_locations() -> dict:

@@ -50,10 +50,11 @@ UPGRADE_OKAY_BUTTON: Tuple[int, int] = (1161, 747)
 
 
 # ============================================
-#  Image paths
+#  Image paths (resolved relative to project root)
 # ============================================
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Project root is one level above this file's directory (tools/)
+SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 IMG_DIR = os.path.join(SCRIPT_DIR, "img")
 
 WALL_IMAGE_NAME = "Wall.png"

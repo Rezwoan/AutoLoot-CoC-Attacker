@@ -4,8 +4,8 @@ from typing import List, Tuple, Optional
 
 import pyautogui
 
-from imageRec import get_game_status
-from location_cache import load_locations, save_locations
+from core.image_recognition import get_game_status
+from core.location_cache import load_locations, save_locations
 
 # ============================================
 #  PyAutoGUI Global Settings

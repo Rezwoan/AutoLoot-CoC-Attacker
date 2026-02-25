@@ -4,8 +4,8 @@ from typing import List, Tuple, Optional
 
 import pyautogui
 
-from imageRec import get_game_status
-from location_cache import load_locations, save_locations
+from core.image_recognition import get_game_status
+from core.location_cache import load_locations, save_locations
 
 
 # ============================================
@@ -667,9 +667,9 @@ UPGRADABLE_REGION = (
 )
 
 # Buttons on the wall upgrade UI
-SELECT_MULTIPLE_WALLS: Point = (963, 944)
-UPGRADE_WITH_GOLD: Point = (1128, 949)
-UPGRADE_WITH_ELIXIR: Point = (1301, 969)
+SELECT_MULTIPLE_WALLS: Point = (875, 956)
+UPGRADE_WITH_GOLD: Point = (1047, 965)
+UPGRADE_WITH_ELIXIR: Point = (1216, 961)
 UPGRADE_OKAY_BUTTON: Point = (1161, 747)
 
 # Image for Wall text
@@ -690,8 +690,8 @@ if not WALL_IMAGE_AVAILABLE:
     )
 
 # Tunable parameters
-NUM_WALLS_PER_GOLD_UPGRADE = 3       # how many walls to select for gold upgrade
-NUM_WALLS_PER_ELIXIR_UPGRADE = 3     # how many walls to select for elixir upgrade
+NUM_WALLS_PER_GOLD_UPGRADE = 4       # how many walls to select for gold upgrade
+NUM_WALLS_PER_ELIXIR_UPGRADE = 4     # how many walls to select for elixir upgrade
 
 MAX_WALL_SCROLL_ATTEMPTS = 25        # how many scroll 'ticks' to look for 'Wall'
 SCROLL_AMOUNT_PER_TICK = -350        # negative scroll = scroll DOWN

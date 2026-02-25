@@ -1,11 +1,15 @@
+import sys
+import os
+
+# Ensure the project root is on the path so `core` package can be imported
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import time
 from typing import List, Tuple
 
 import pyautogui
 
-# Import the game status helper from your imageRec.py
-# Make sure imageRec.py is in the same folder.
-from imageRec import get_game_status
+from core.image_recognition import get_game_status
 
 # ============================================
 #  PyAutoGUI Global Settings

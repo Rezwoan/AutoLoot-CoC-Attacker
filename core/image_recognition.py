@@ -33,6 +33,12 @@ except Exception:
     HAS_NUMPY = False
 
 # ============================================================
+#  Module-level root path (project root, one level above core/)
+# ============================================================
+
+_MODULE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# ============================================================
 #  Screen geometry
 # ============================================================
 
@@ -46,8 +52,8 @@ BOTTOM_UPPER = (1075, 1040)
 #  Image template configuration
 # ============================================================
 
-NEXT_BUTTON_TEMPLATE_PATH = "next.png"
-FIVE_TEMPLATE_PATH        = "five.png"
+NEXT_BUTTON_TEMPLATE_PATH = os.path.join(_MODULE_DIR, "next.png")
+FIVE_TEMPLATE_PATH        = os.path.join(_MODULE_DIR, "five.png")
 
 POLL_INTERVAL_SECONDS = 0.5
 
@@ -273,7 +279,7 @@ def get_game_status() -> dict:
 def monitor_screen():
     """
     CLI monitor: prints states and plays sounds.
-    This is only used when running imageRec.py directly.
+    This is only used when running image_recognition.py directly.
     """
     next_region = compute_next_button_search_region()
     five_region = compute_five_search_region()
