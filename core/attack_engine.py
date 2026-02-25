@@ -86,13 +86,33 @@ class ScreenConfig:
 
     # --- Bar button image filenames (inside img/) --------------------------
     BUTTON_IMAGES: Dict[str, str] = {
-        "valk":       "troop_valkyrie.png",
-        "siege":      "troop_siege.png",
-        "earthquake": "spell_earthquake.png",
-        "hero_king":  "hero_king.png",
-        "hero_champ": "hero_champion.png",
-        "hero_minion":"hero_minion.png",
-        "hero_warden":"hero_warden.png",
+        "valk":        "troop_valkyrie.png",
+        "siege":       "troop_siege.png",
+        "earthquake":  "spell_earthquake.png",
+        "hero_king":   "hero_king.png",
+        "hero_queen":  "hero_queen.png",
+        "hero_warden": "hero_warden.png",
+        "hero_champ":  "hero_champion.png",
+        "hero_minion": "hero_minion.png",
+    }
+
+    # --- Ordered list of all heroes (priority order for deployment) --------
+    #   Only the first ``num_heroes`` entries are deployed each attack.
+    HERO_ORDER: List[str] = [
+        "hero_king",
+        "hero_queen",
+        "hero_warden",
+        "hero_champ",
+        "hero_minion",
+    ]
+
+    # --- Which heroes deploy on the left vs right side of the base --------
+    HERO_SIDE: Dict[str, str] = {
+        "hero_king":   "left",
+        "hero_queen":  "left",
+        "hero_warden": "left",
+        "hero_champ":  "right",
+        "hero_minion": "right",
     }
 
     # --- Fallback positions if image detection completely fails ------------
@@ -101,9 +121,10 @@ class ScreenConfig:
         "siege":       (617, 1132),
         "earthquake":  (888, 1142),
         "hero_king":   (711, 1136),
-        "hero_champ":  (783, 1146),
-        "hero_minion": (868, 1145),
-        "hero_warden": (950, 1145),
+        "hero_queen":  (783, 1136),
+        "hero_warden": (868, 1145),
+        "hero_champ":  (868, 1146),
+        "hero_minion": (950, 1145),
     }
 
     # --- Return-home image (inside img/) -----------------------------------
@@ -451,46 +472,57 @@ class TroopDeployer:
         for x, y in positions[:to_deploy]:
             self._click.click(x, y, move_duration=0.05, post_delay=click_delay)
 
-    def deploy_heroes(self) -> None:
+    def deploy_heroes(self, num_heroes: int = 4) -> None:
         """
-        Deploy up to four heroes (king/warden on left, champ/minion on right).
-        Any hero currently upgrading will simply be skipped.
-        """
-        print("[INFO] Deploying heroes...")
+        Deploy the first *num_heroes* heroes from ``ScreenConfig.HERO_ORDER``.
 
-        cfg  = ScreenConfig
-        left_mid  = (
-            (cfg.LEFT_LEFT[0]    + cfg.LEFT_BOTTOM[0])  // 2,
-            (cfg.LEFT_LEFT[1]    + cfg.LEFT_BOTTOM[1])  // 2,
+        With 5 heroes total only 4 can be active at a time.  Pass the actual
+        number currently available (0-4).  Heroes are deployed in priority
+        order (king → queen → warden → champ → minion); left-side heroes drop
+        on the left edge, right-side heroes on the right edge.  Any hero
+        whose button cannot be located is silently skipped.
+        """
+        num_heroes = max(0, min(4, num_heroes))
+        if num_heroes == 0:
+            print("[INFO] No heroes to deploy (num_heroes=0).")
+            return
+
+        print(f"[INFO] Deploying {num_heroes} hero(es)...")
+
+        cfg = ScreenConfig
+        left_mid = (
+            (cfg.LEFT_LEFT[0]   + cfg.LEFT_BOTTOM[0]) // 2,
+            (cfg.LEFT_LEFT[1]   + cfg.LEFT_BOTTOM[1]) // 2,
         )
         right_mid = (
-            (cfg.RIGHT_RIGHT[0]  + cfg.RIGHT_BOTTOM[0]) // 2,
-            (cfg.RIGHT_RIGHT[1]  + cfg.RIGHT_BOTTOM[1]) // 2,
+            (cfg.RIGHT_RIGHT[0] + cfg.RIGHT_BOTTOM[0]) // 2,
+            (cfg.RIGHT_RIGHT[1] + cfg.RIGHT_BOTTOM[1]) // 2,
         )
 
-        left_heroes  = [
-            ("hero_king",   left_mid),
-            ("hero_warden", left_mid),
-        ]
-        right_heroes = [
-            ("hero_champ",  right_mid),
-            ("hero_minion", right_mid),
-        ]
-
-        for key, drop_pos in left_heroes + right_heroes:
+        active_heroes = cfg.HERO_ORDER[:num_heroes]
+        for key in active_heroes:
+            drop_pos = left_mid if cfg.HERO_SIDE.get(key) == "left" else right_mid
             btn = self._detector.locate(key)
             if btn:
                 self._click.click(*btn,      move_duration=0.1,  post_delay=0.15)
                 self._click.click(*drop_pos, move_duration=0.16, post_delay=0.15)
 
-    def activate_hero_abilities(self, delay_before: float = 0.25) -> None:
-        """Re-click all available hero bar buttons to trigger abilities."""
+    def activate_hero_abilities(
+        self,
+        num_heroes:   int   = 4,
+        delay_before: float = 0.25,
+    ) -> None:
+        """Re-click the first *num_heroes* hero bar buttons to trigger abilities."""
         if delay_before > 0:
             time.sleep(delay_before)
 
+        num_heroes = max(0, min(4, num_heroes))
+        if num_heroes == 0:
+            return
+
         print("[INFO] Activating hero abilities...")
 
-        keys = ["hero_king", "hero_warden", "hero_champ", "hero_minion"]
+        keys    = ScreenConfig.HERO_ORDER[:num_heroes]
         buttons = [self._detector.locate(k) for k in keys]
 
         if not any(buttons):
@@ -609,11 +641,12 @@ class AttackSession:
     cache_mode : initial cache mode (``"use"`` / ``"update"``)
     """
 
-    def __init__(self, img_dir: str, cache_mode: str = "use"):
+    def __init__(self, img_dir: str, cache_mode: str = "use", num_heroes: int = 4):
         self.clicker    = Clicker()
         self.detector   = ButtonDetector(img_dir, cache_mode)
         self.deployer   = TroopDeployer(self.clicker, self.detector)
         self.controller = BattleController(self.clicker, self.detector)
+        self.num_heroes: int = max(0, min(4, num_heroes))
 
     def run(self, initial_wait: float = 0.0) -> None:
         """
@@ -642,8 +675,8 @@ class AttackSession:
 
         self.deployer.deploy_siege_machine()
         self.deployer.deploy_valkyries(count=42, click_delay=0.05)
-        self.deployer.deploy_heroes()
-        self.deployer.activate_hero_abilities(delay_before=0.25)
+        self.deployer.deploy_heroes(num_heroes=self.num_heroes)
+        self.deployer.activate_hero_abilities(num_heroes=self.num_heroes, delay_before=0.25)
 
         result = self.controller.wait_for_battle_end(max_wait=90.0)
 

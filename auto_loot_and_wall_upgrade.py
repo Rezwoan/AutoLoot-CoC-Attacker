@@ -282,7 +282,8 @@ class LootAndWallBot:
 
     def setup(self) -> None:
         """Initialise session and load/ask about location cache."""
-        session = AttackSession(_IMG_DIR, cache_mode="update")
+        num_heroes = _ask_num_heroes()
+        session = AttackSession(_IMG_DIR, cache_mode="update", num_heroes=num_heroes)
         session.detector.load_cache()
         session.detector.ask_cache_mode()
         self._session  = session
@@ -408,6 +409,16 @@ class LootAndWallBot:
 # ===========================================================================
 #  Entry point
 # ===========================================================================
+
+def _ask_num_heroes() -> int:
+    try:
+        raw = input("How many heroes are available? (0-4, default 4): ").strip()
+        n   = int(raw) if raw else 4
+    except ValueError:
+        print("[WARN] Invalid input, defaulting to 4.")
+        n = 4
+    return max(0, min(4, n))
+
 
 def _ask_mode() -> str:
     return input(

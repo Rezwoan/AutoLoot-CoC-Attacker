@@ -53,7 +53,8 @@ class AttackBot:
         Load the location cache and ask the user how to proceed.
         Must be called once before :meth:`run`.
         """
-        session = AttackSession(_IMG_DIR, cache_mode="update")
+        num_heroes = _ask_num_heroes()
+        session = AttackSession(_IMG_DIR, cache_mode="update", num_heroes=num_heroes)
         session.detector.load_cache()
         session.detector.ask_cache_mode()
         self._session = session
@@ -95,6 +96,16 @@ class AttackBot:
 # ===========================================================================
 #  Entry point
 # ===========================================================================
+
+def _ask_num_heroes() -> int:
+    try:
+        raw = input("How many heroes are available? (0-4, default 4): ").strip()
+        n   = int(raw) if raw else 4
+    except ValueError:
+        print("[WARN] Invalid input, defaulting to 4.")
+        n = 4
+    return max(0, min(4, n))
+
 
 def _ask_num_attacks() -> int:
     try:
