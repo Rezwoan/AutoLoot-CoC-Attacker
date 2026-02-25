@@ -57,14 +57,9 @@ UPGRADE_OKAY_BUTTON: Tuple[int, int] = (1161, 747)
 SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 IMG_DIR = os.path.join(SCRIPT_DIR, "img")
 
-WALL_IMAGE_NAME = "Wall.png"
+WALL_IMAGE_NAME = "ui_wall.png"
 
-# Prefer img/Wall.png; fall back to script folder if not there
 WALL_IMAGE_PATH = os.path.join(IMG_DIR, WALL_IMAGE_NAME)
-if not os.path.isfile(WALL_IMAGE_PATH):
-    alt_path = os.path.join(SCRIPT_DIR, WALL_IMAGE_NAME)
-    if os.path.isfile(alt_path):
-        WALL_IMAGE_PATH = alt_path
 
 WALL_IMAGE_AVAILABLE = os.path.isfile(WALL_IMAGE_PATH)
 if not WALL_IMAGE_AVAILABLE:
@@ -216,7 +211,7 @@ def find_and_click_wall_entry(max_scrolls: int = MAX_WALL_SCROLL_ATTEMPTS) -> bo
     Scrolls through the upgradables window, trying to find the 'Wall' entry.
 
     After each scroll:
-      - Try image detection (Wall.png) inside UPGRADABLE_REGION
+      - Try image detection (ui_wall.png) inside UPGRADABLE_REGION
       - Then try OCR text detection for 'Wall'
 
     Once found, clicks on it and returns True.

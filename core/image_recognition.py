@@ -33,10 +33,11 @@ except Exception:
     HAS_NUMPY = False
 
 # ============================================================
-#  Module-level root path (project root, one level above core/)
+#  Module-level paths
 # ============================================================
 
-_MODULE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_IMG_DIR  = os.path.join(_ROOT_DIR, "img")
 
 # ============================================================
 #  Screen geometry
@@ -52,8 +53,8 @@ BOTTOM_UPPER = (1075, 1040)
 #  Image template configuration
 # ============================================================
 
-NEXT_BUTTON_TEMPLATE_PATH = os.path.join(_MODULE_DIR, "next.png")
-FIVE_TEMPLATE_PATH        = os.path.join(_MODULE_DIR, "five.png")
+NEXT_BUTTON_TEMPLATE_PATH = os.path.join(_IMG_DIR, "ui_next_button.png")
+FIVE_TEMPLATE_PATH        = os.path.join(_IMG_DIR, "ui_fifty_percent.png")
 
 POLL_INTERVAL_SECONDS = 0.5
 
@@ -184,7 +185,7 @@ def next_button_present(region: Optional[Tuple[int, int, int, int]] = None) -> b
 
 def _ensure_five_template_loaded() -> bool:
     """
-    Load five.png as grayscale template for cv2.matchTemplate.
+    Load ui_fifty_percent.png as grayscale template for cv2.matchTemplate.
     """
     global FIVE_TEMPLATE, FIVE_TEMPLATE_SHAPE, _warned_five_disabled
 
@@ -198,12 +199,12 @@ def _ensure_five_template_loaded() -> bool:
         return False
 
     if not os.path.exists(FIVE_TEMPLATE_PATH):
-        print(f"[ERROR] five.png missing: {FIVE_TEMPLATE_PATH}")
+        print(f"[ERROR] ui_fifty_percent.png missing: {FIVE_TEMPLATE_PATH}")
         return False
 
     template = cv2.imread(FIVE_TEMPLATE_PATH, cv2.IMREAD_GRAYSCALE)
     if template is None:
-        print("[ERROR] Failed loading five.png")
+        print("[ERROR] Failed loading ui_fifty_percent.png")
         return False
 
     FIVE_TEMPLATE = template
@@ -213,7 +214,7 @@ def _ensure_five_template_loaded() -> bool:
 
 def fifty_percent_reached(region: Optional[Tuple[int, int, int, int]] = None) -> bool:
     """
-    Use cv2.matchTemplate to detect five.png in the small fixed region
+    Use cv2.matchTemplate to detect ui_fifty_percent.png in the small fixed region
     around the % text.
 
     Returns True if match score >= FIFTY_DETECTION_THRESHOLD.
