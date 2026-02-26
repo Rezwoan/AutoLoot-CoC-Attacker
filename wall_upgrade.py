@@ -88,11 +88,12 @@ def _do_single_upgrade(
     click(*wall_pos)
     time.sleep(0.8)
 
-    # Select Multiple Walls
+    # Select Multiple Walls (click 3 times to queue more upgrades)
     if select_multi:
-        log("Clicking Select Multiple...")
-        click(*select_multi)
-        time.sleep(0.5)
+        log("Clicking Select Multiple (×3)...")
+        for _ in range(3):
+            click(*select_multi)
+            time.sleep(0.3)
 
     # Choose resource
     log(f"Upgrading with {resource_name}...")
