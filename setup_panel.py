@@ -43,6 +43,7 @@ from core.config import (
     load_config,
     save_config,
 )
+from core.wall_detector import find_text_on_screen, find_all_text
 
 # ---------------------------------------------------------------------------
 #  Constants
@@ -614,18 +615,32 @@ class SetupPanel:
             row=2, column=0, columnspan=3, sticky="w", pady=(4, 0)
         )
 
-        # ── Wall detection (OCR) — placeholder ──
+        # ── Wall detection (OCR) ──
         wall = ttk.LabelFrame(
-            parent, text="Wall Detection (OCR)", padding=(10, 6)
+            parent, text="Test Wall Detection (OCR)", padding=(10, 6)
         )
         wall.pack(fill="x", padx=4, pady=(0, 6))
 
         ttk.Label(
             wall,
-            text="OCR-based wall detection will be available once\n"
-            "pytesseract and the wall upgrade module are built.",
+            text='Searches the screen for the word "Wall" using OCR.',
             foreground="gray",
-        ).pack(anchor="w")
+        ).grid(row=0, column=0, columnspan=3, sticky="w")
+
+        ttk.Button(
+            wall, text="Find \"Wall\" on Screen",
+            command=self._run_wall_ocr_test,
+        ).grid(row=1, column=0, sticky="w", pady=(6, 0))
+
+        ttk.Button(
+            wall, text="Show All Text",
+            command=self._run_ocr_dump,
+        ).grid(row=1, column=1, sticky="w", padx=6, pady=(6, 0))
+
+        self._test_wall_result = tk.StringVar(value="\u2014")
+        ttk.Label(
+            wall, textvariable=self._test_wall_result, wraplength=360,
+        ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
     def _on_test_pos_selected(self, _e: tk.Event = None) -> None:
         key = self._test_pos_var.get()
@@ -869,6 +884,61 @@ class SetupPanel:
         except Exception as exc:
             self.root.attributes("-alpha", self._WINDOW_ALPHA)
             self._test_click_result.set(f"\u2717 Error: {exc}")
+
+    # ==================================================================
+    #  Test-tab wall OCR
+    # ==================================================================
+
+    def _run_wall_ocr_test(self) -> None:
+        """Search the entire screen for 'Wall' text using OCR."""
+        self._test_wall_result.set("Scanning screen with OCR...")
+        self.root.attributes("-alpha", self._CAPTURE_ALPHA)
+        self.root.update()
+        self.root.after(400, self._do_wall_ocr_test)
+
+    def _do_wall_ocr_test(self) -> None:
+        try:
+            pos = find_text_on_screen("Wall")
+            self.root.attributes("-alpha", self._WINDOW_ALPHA)
+            if pos:
+                self._test_wall_result.set(
+                    f"\u2713  'Wall' FOUND at ({pos[0]}, {pos[1]})"
+                )
+            else:
+                self._test_wall_result.set(
+                    "\u2717  'Wall' NOT FOUND on screen"
+                )
+        except Exception as exc:
+            self.root.attributes("-alpha", self._WINDOW_ALPHA)
+            self._test_wall_result.set(f"\u2717  OCR error: {exc}")
+
+    def _run_ocr_dump(self) -> None:
+        """Show all text recognised on screen (debugging aid)."""
+        self._test_wall_result.set("Reading all text on screen...")
+        self.root.attributes("-alpha", self._CAPTURE_ALPHA)
+        self.root.update()
+        self.root.after(400, self._do_ocr_dump)
+
+    def _do_ocr_dump(self) -> None:
+        try:
+            words = find_all_text()
+            self.root.attributes("-alpha", self._WINDOW_ALPHA)
+            if not words:
+                self._test_wall_result.set("No text detected on screen")
+                return
+
+            # Show first 15 words with confidence
+            preview = [
+                f"{w['text']}({w['conf']}%)" for w in words[:15]
+            ]
+            remaining = max(0, len(words) - 15)
+            text = "  ".join(preview)
+            if remaining:
+                text += f"  ... +{remaining} more"
+            self._test_wall_result.set(text)
+        except Exception as exc:
+            self.root.attributes("-alpha", self._WINDOW_ALPHA)
+            self._test_wall_result.set(f"\u2717  OCR error: {exc}")
 
     # ==================================================================
     #  Bot control
