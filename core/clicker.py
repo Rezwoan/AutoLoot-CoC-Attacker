@@ -33,3 +33,24 @@ def scroll_at(
     """Move to *(x, y)* and scroll by *amount* (negative = down)."""
     pyautogui.moveTo(x, y, duration=duration)
     pyautogui.scroll(amount)
+
+
+def drag_scroll(
+    x: int,
+    y: int,
+    distance: int = 200,
+    duration: float = 0.4,
+) -> None:
+    """
+    Scroll by click-hold-drag-release (for emulators that ignore mouse wheel).
+
+    Clicks at *(x, y)*, holds, drags **upward** by *distance* pixels,
+    then releases.  Positive *distance* scrolls the list **down**
+    (finger moves up).
+    """
+    pyautogui.moveTo(x, y, duration=0.05)
+    pyautogui.mouseDown()
+    time.sleep(0.05)
+    pyautogui.moveTo(x, y - distance, duration=duration)
+    pyautogui.mouseUp()
+    time.sleep(0.05)
