@@ -57,6 +57,7 @@ POSITION_SCHEMA: Dict[str, Dict[str, str]] = {
     },
     "Wall Upgrade": {
         "wall_upgradable":   "All Upgradable Button",
+        "wall_scroll_pos":   "Upgrade List Scroll Area",
         "wall_select_multi": "Select Multiple Walls",
         "wall_gold":         "Upgrade with Gold",
         "wall_elixir":       "Upgrade with Elixir",
