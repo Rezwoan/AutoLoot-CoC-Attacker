@@ -27,7 +27,7 @@ from core.detector import find_on_screen
 
 def find_wall_on_screen(
     template_path: str,
-    confidence: float = 0.75,
+    confidence: float = 0.90,
 ) -> Optional[Tuple[int, int]]:
     """
     Search the full screen for the "Wall" template image.
@@ -37,8 +37,8 @@ def find_wall_on_screen(
     template_path : str
         Path to the captured template image (e.g. ``img/wall_text.png``).
     confidence : float
-        Minimum match score (0-1).  Default 0.75 is forgiving enough
-        for slight UI variations while avoiding false positives.
+        Minimum match score (0-1).  Default 0.90 avoids false positives
+        while still matching the Wall entry reliably.
 
     Returns
     -------
@@ -57,7 +57,7 @@ def scroll_and_find_wall(
     max_scrolls: int = 10,
     scroll_amount: int = -3,
     pause: float = 0.8,
-    confidence: float = 0.75,
+    confidence: float = 0.90,
 ) -> Optional[Tuple[int, int]]:
     """
     Scroll through the upgrade list and look for the Wall template.
