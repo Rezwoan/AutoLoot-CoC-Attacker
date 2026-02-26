@@ -16,8 +16,7 @@ import os
 import time
 from typing import Optional, Tuple
 
-import pyautogui
-
+from core.clicker import drag_scroll
 from core.detector import find_on_screen
 
 
@@ -55,25 +54,29 @@ def scroll_and_find_wall(
     scroll_x: int,
     scroll_y: int,
     max_scrolls: int = 10,
-    scroll_amount: int = -3,
+    drag_distance: int = 200,
     pause: float = 0.8,
     confidence: float = 0.90,
 ) -> Optional[Tuple[int, int]]:
     """
     Scroll through the upgrade list and look for the Wall template.
 
+    Uses **click-hold-drag-release** (not mouse wheel) so it works in
+    emulators.  Starts at *(scroll_x, scroll_y)*, drags upward by
+    *drag_distance* pixels each step to scroll the list down.
+
     Parameters
     ----------
     template_path : str
         Path to the captured "Wall" template image.
     scroll_x, scroll_y : int
-        Screen position to place the mouse while scrolling.
+        Screen position where the drag starts (inside the upgrade list).
     max_scrolls : int
-        Maximum number of scroll steps before giving up.
-    scroll_amount : int
-        Scroll delta per step (negative = scroll down).
+        Maximum number of drag-scroll steps before giving up.
+    drag_distance : int
+        How many pixels to drag upward per step (higher = faster scroll).
     pause : float
-        Seconds to wait after each scroll for the UI to settle.
+        Seconds to wait after each drag for the UI to settle.
     confidence : float
         Minimum template-match score (0-1).
 
@@ -90,10 +93,8 @@ def scroll_and_find_wall(
     if pos:
         return pos
 
-    pyautogui.moveTo(scroll_x, scroll_y, duration=0.1)
-
     for _ in range(max_scrolls):
-        pyautogui.scroll(scroll_amount)
+        drag_scroll(scroll_x, scroll_y, distance=drag_distance)
         time.sleep(pause)
 
         pos = find_on_screen(template_path, confidence)
