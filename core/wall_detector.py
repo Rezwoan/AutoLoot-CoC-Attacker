@@ -33,10 +33,19 @@ _COMMON_TESS_PATHS = [
     r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
 ]
 
+# Also check if tesseract is on PATH
+import shutil as _shutil
+_tess_on_path = _shutil.which("tesseract")
+
+_found = False
 for _p in _COMMON_TESS_PATHS:
     if os.path.isfile(_p):
         pytesseract.pytesseract.tesseract_cmd = _p
+        _found = True
         break
+
+if not _found and _tess_on_path:
+    pytesseract.pytesseract.tesseract_cmd = _tess_on_path
 
 
 # ---------------------------------------------------------------------------
