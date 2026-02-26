@@ -34,7 +34,6 @@ POSITION_SCHEMA: Dict[str, Dict[str, str]] = {
         "hero_2": "Hero Slot 2",
         "hero_3": "Hero Slot 3",
         "hero_4": "Hero Slot 4",
-        "hero_5": "Hero Slot 5",
     },
     "Deployment Edges": {
         "deploy_left_up":      "Left Edge — Top",
@@ -45,8 +44,16 @@ POSITION_SCHEMA: Dict[str, Dict[str, str]] = {
         "deploy_right_bottom": "Right Edge — Bottom",
     },
     "Spell Targets": {
-        "spell_target_left":  "Spell Drop — Left",
-        "spell_target_right": "Spell Drop — Right",
+        "spell_target_left":   "Spell Drop — Left",
+        "spell_target_center": "Spell Drop — Center",
+        "spell_target_right":  "Spell Drop — Right",
+    },
+    "Hero & Siege Deploy": {
+        "hero_1_deploy": "Hero 1 Deploy Position",
+        "hero_2_deploy": "Hero 2 Deploy Position",
+        "hero_3_deploy": "Hero 3 Deploy Position",
+        "hero_4_deploy": "Hero 4 Deploy Position",
+        "siege_deploy":  "Siege Machine Deploy",
     },
     "Wall Upgrade": {
         "wall_upgradable":   "All Upgradable Button",

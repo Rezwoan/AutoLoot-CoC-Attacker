@@ -1,0 +1,89 @@
+{
+  "positions": {
+    "attack_menu": [
+      107,
+      1076
+    ],
+    "find_match": [
+      291,
+      846
+    ],
+    "confirm_attack": [
+      1609,
+      984
+    ],
+    "surrender": null,
+    "confirm_ok": null,
+    "troop": [
+      389,
+      1126
+    ],
+    "spell": [
+      1259,
+      1086
+    ],
+    "siege": [
+      564,
+      1101
+    ],
+    "hero_1": [
+      691,
+      1133
+    ],
+    "hero_2": [
+      807,
+      1117
+    ],
+    "hero_3": [
+      974,
+      1081
+    ],
+    "hero_4": [
+      1116,
+      1120
+    ],
+    "hero_5": null,
+    "deploy_left_up": [
+      871,
+      76
+    ],
+    "deploy_left_left": [
+      230,
+      576
+    ],
+    "deploy_left_bottom": [
+      774,
+      996
+    ],
+    "deploy_right_up": [
+      1052,
+      72
+    ],
+    "deploy_right_right": [
+      1700,
+      570
+    ],
+    "deploy_right_bottom": [
+      1175,
+      975
+    ],
+    "spell_target_left": [
+      648,
+      544
+    ],
+    "spell_target_right": [
+      1330,
+      569
+    ],
+    "wall_upgradable": null,
+    "wall_select_multi": null,
+    "wall_gold": null,
+    "wall_elixir": null,
+    "wall_ok": null
+  },
+  "templates": {
+    "next_button": "next_button.png",
+    "return_home": "return_home.png",
+    "fifty_percent": null
+  }
+}

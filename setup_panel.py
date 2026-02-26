@@ -21,6 +21,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Callable, Dict, Optional
 
+import cv2
+import numpy as np
 import pyautogui
 from PIL import Image, ImageGrab, ImageTk
 from pynput import mouse as pynput_mouse
@@ -299,6 +301,13 @@ class SetupPanel:
             command=lambda k=key: self._paste_template(k),
         ).pack(side="left", padx=1)
 
+        ttk.Button(
+            btn_frame,
+            text="Test",
+            width=4,
+            command=lambda k=key: self._test_template(k),
+        ).pack(side="left", padx=1)
+
     # ------------------------------------------------------------------
     #  Display helpers
     # ------------------------------------------------------------------
@@ -424,6 +433,61 @@ class SetupPanel:
 
         self._status_var.set(f"\u2713  Pasted template: {filename}")
         self._auto_save()
+
+    # ==================================================================
+    #  Test template detection
+    # ==================================================================
+
+    def _test_template(self, key: str) -> None:
+        """Take a screenshot and try to find the template on screen."""
+        tmpl_file = self.config["templates"].get(key)
+        if not tmpl_file:
+            self._status_var.set(f"\u2717  No template set for {key}")
+            return
+
+        filepath = os.path.join(_IMG_DIR, tmpl_file)
+        if not os.path.isfile(filepath):
+            self._status_var.set(f"\u2717  Template file missing: {tmpl_file}")
+            return
+
+        self._status_var.set(f"Testing {key}...")
+        self.root.attributes("-alpha", self._CAPTURE_ALPHA)
+        self.root.update()
+
+        # Small delay so panel fades before screenshot
+        self.root.after(400, self._do_test_template, key, filepath)
+
+    def _do_test_template(self, key: str, filepath: str) -> None:
+        """Perform the actual template match test."""
+        try:
+            screenshot = pyautogui.screenshot()
+            screen_arr = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2GRAY)
+            template = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
+
+            if template is None:
+                self.root.attributes("-alpha", self._WINDOW_ALPHA)
+                self._status_var.set(f"\u2717  Could not load template: {key}")
+                return
+
+            result = cv2.matchTemplate(screen_arr, template, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv2.minMaxLoc(result)
+            confidence = round(max_val * 100, 1)
+
+            self.root.attributes("-alpha", self._WINDOW_ALPHA)
+
+            if max_val >= 0.8:
+                cx = max_loc[0] + template.shape[1] // 2
+                cy = max_loc[1] + template.shape[0] // 2
+                self._status_var.set(
+                    f"\u2713  {key}: FOUND at ({cx}, {cy}) — {confidence}%"
+                )
+            else:
+                self._status_var.set(
+                    f"\u2717  {key}: NOT FOUND — best match {confidence}%"
+                )
+        except Exception as exc:
+            self.root.attributes("-alpha", self._WINDOW_ALPHA)
+            self._status_var.set(f"\u2717  Test error: {exc}")
 
     # ==================================================================
     #  Save / Load / Reset
