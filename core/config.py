@@ -98,6 +98,9 @@ def default_config() -> Dict[str, Any]:
     return {
         "positions": positions,
         "templates": templates,
+        "settings": {
+            "troop_count": 40,
+        },
     }
 
 
@@ -109,7 +112,7 @@ def load_config(path: str = CONFIG_FILE) -> Dict[str, Any]:
         try:
             with open(path, "r") as fh:
                 saved = json.load(fh)
-            for section in ("positions", "templates"):
+            for section in ("positions", "templates", "settings"):
                 if section in saved and isinstance(saved[section], dict):
                     for key, val in saved[section].items():
                         if key in config[section]:

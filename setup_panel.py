@@ -22,7 +22,6 @@ Usage
 """
 
 import os
-import random
 import threading
 import time
 import tkinter as tk
@@ -245,11 +244,9 @@ class BotOverlay(tk.Toplevel):
             font=("Segoe UI", 8),
         ).pack(side="left", padx=(10, 0))
 
-        # Centre-top of screen
+        # Upper-left of screen
         self.update_idletasks()
-        sw = self.winfo_screenwidth()
-        w = self.winfo_width()
-        self.geometry(f"+{(sw - w) // 2}+{4}")
+        self.geometry(f"+{4}+{4}")
 
         # Drag support
         self._dx = self._dy = 0
@@ -320,6 +317,7 @@ class SetupPanel:
 
         # Bot settings -------------------------------------------------
         self._total_attacks = tk.IntVar(value=10)
+        self._troop_count = tk.IntVar(value=self.config.get("settings", {}).get("troop_count", 40))
         self._wall_enabled = tk.BooleanVar(value=False)
         self._wall_every = tk.IntVar(value=5)
         self._attacks_done = 0
@@ -483,6 +481,18 @@ class SetupPanel:
         ttk.Spinbox(
             atk, from_=1, to=999, width=6, textvariable=self._total_attacks
         ).grid(row=r, column=1, padx=6, sticky="w")
+
+        r += 1
+        ttk.Label(atk, text="Troop Count:").grid(
+            row=r, column=0, sticky="w", pady=(4, 0)
+        )
+        tc_frame = ttk.Frame(atk)
+        tc_frame.grid(row=r, column=1, sticky="w", padx=6, pady=(4, 0))
+        ttk.Spinbox(
+            tc_frame, from_=4, to=300, width=6,
+            textvariable=self._troop_count,
+        ).pack(side="left")
+        ttk.Label(tc_frame, text=" (min 4)", foreground="gray").pack(side="left")
 
         r += 1
         ttk.Checkbutton(
@@ -966,60 +976,33 @@ class SetupPanel:
         self._tick_overlay()
 
     def _bot_loop(self) -> None:
-        """
-        Bot main loop.
-
-        **Replace the placeholder block below** with real attack logic
-        once ``attack.py`` is implemented.
-        """
+        """Bot main loop — delegates to attack.py engine."""
         total = self._total_attacks.get()
 
         try:
-            # ── PLACEHOLDER — demo mode ──────────────────────────────
-            # When the attack engine is ready, import and call it here:
-            #
-            #   from attack import run_attacks
-            #   run_attacks(
-            #       config=self.config,
-            #       total=total,
-            #       stop_event=self._bot_stop,
-            #       pause_event=self._bot_pause,
-            #       wall_enabled=self._wall_enabled.get(),
-            #       wall_every=self._wall_every.get(),
-            #       on_attack_done=self._on_attack_done,
-            #   )
-            #
-            # For now, simulate attacks so the overlay can be tested.
-
-            self._log_msg(
-                "\u26a0 Attack engine not built yet \u2014 demo mode"
+            # Save troop_count into config before passing it
+            self.config.setdefault("settings", {})["troop_count"] = (
+                self._troop_count.get()
             )
+            self._auto_save()
 
-            for _ in range(total):
-                if self._bot_stop.is_set():
-                    break
+            from attack import run_attacks
 
-                # Honour pause
-                while (
-                    self._bot_pause.is_set()
-                    and not self._bot_stop.is_set()
-                ):
-                    time.sleep(0.2)
-
-                if self._bot_stop.is_set():
-                    break
-
-                time.sleep(3)  # simulate attack duration
-
-                self._attacks_done += 1
-                ok = random.random() > 0.3
-                if ok:
+            def _on_attack_done(num: int, got_fifty: bool):
+                self._attacks_done = num
+                if got_fifty:
                     self._attacks_ok += 1
 
-                self._log_msg(
-                    f"Attack {self._attacks_done}/{total} \u2014 "
-                    f"{'\u2713 50%+' if ok else '\u2717 below 50%'}"
-                )
+            run_attacks(
+                config=self.config,
+                total=total,
+                stop_event=self._bot_stop,
+                pause_event=self._bot_pause,
+                wall_enabled=self._wall_enabled.get(),
+                wall_every=self._wall_every.get(),
+                on_attack_done=_on_attack_done,
+                log=self._log_msg,
+            )
 
         except Exception as exc:
             self._log_msg(f"Bot error: {exc}")
