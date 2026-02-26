@@ -74,6 +74,7 @@ TEMPLATE_SCHEMA: Dict[str, Dict[str, str]] = {
         "next_button":   "Next Button",
         "return_home":   "Return Home Button",
         "fifty_percent": "50% Destruction",
+        "wall_text":     "Wall Text (Upgrade List)",
     },
 }
 

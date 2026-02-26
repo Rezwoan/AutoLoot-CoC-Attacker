@@ -6,7 +6,7 @@ Automates wall upgrading in Clash of Clans.
 Flow
 ----
 1. Click **All Upgradable** button  → opens the scrollable upgrade list.
-2. Scroll through the list, using OCR to find the word **"Wall"**.
+2. Scroll through the list, using template matching to find **"Wall"**.
 3. Click on the Wall entry → enters wall upgrade mode.
 4. Click **Select Multiple Walls** to enable multi-select.
 5. Click **Upgrade with Gold** or **Upgrade with Elixir**.
@@ -15,12 +15,16 @@ Flow
 All positions come from ``config.json`` (set via the Setup Panel).
 """
 
+import os
 import time
 from typing import Any, Callable, Dict, Optional
 
 from core.clicker import click, scroll_at
 from core.config import load_config
 from core.wall_detector import scroll_and_find_wall
+
+# Default template path (set via Setup Panel → Detection tab)
+_WALL_TEMPLATE = os.path.join("img", "wall_text.png")
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +106,14 @@ def upgrade_walls(
 
     # ── Step 2 — Scroll and find "Wall" ───────────────────────────────
     log("Searching for 'Wall' in upgrade list...")
+
+    if not os.path.isfile(_WALL_TEMPLATE):
+        log(f"Wall template not found: {_WALL_TEMPLATE}")
+        log("Capture it via Setup Panel → Detection tab → 'Wall Text'.")
+        return False
+
     wall_pos = scroll_and_find_wall(
+        template_path=_WALL_TEMPLATE,
         scroll_x=scroll_pos[0],
         scroll_y=scroll_pos[1],
         max_scrolls=max_scrolls,

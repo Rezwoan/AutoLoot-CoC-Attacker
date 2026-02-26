@@ -8,7 +8,7 @@ Tabs
 1. **Positions**  — click-to-set button positions  (scrollable)
 2. **Detection**  — capture / paste / test template images
 3. **Control**    — start attacks, wall upgrade settings, live log
-4. **Test**       — test image detection, position clicking, wall OCR
+4. **Test**       — test image detection, position clicking, wall detection
 
 Overlay
 -------
@@ -43,7 +43,7 @@ from core.config import (
     load_config,
     save_config,
 )
-from core.wall_detector import find_text_on_screen, find_all_text
+from core.wall_detector import find_wall_on_screen
 
 # ---------------------------------------------------------------------------
 #  Constants
@@ -615,27 +615,22 @@ class SetupPanel:
             row=2, column=0, columnspan=3, sticky="w", pady=(4, 0)
         )
 
-        # ── Wall detection (OCR) ──
+        # ── Wall detection (Template Matching) ──
         wall = ttk.LabelFrame(
-            parent, text="Test Wall Detection (OCR)", padding=(10, 6)
+            parent, text="Test Wall Detection (Template Match)", padding=(10, 6)
         )
         wall.pack(fill="x", padx=4, pady=(0, 6))
 
         ttk.Label(
             wall,
-            text='Searches the screen for the word "Wall" using OCR.',
+            text='Matches the captured "Wall Text" template on screen.',
             foreground="gray",
         ).grid(row=0, column=0, columnspan=3, sticky="w")
 
         ttk.Button(
             wall, text="Find \"Wall\" on Screen",
-            command=self._run_wall_ocr_test,
+            command=self._run_wall_template_test,
         ).grid(row=1, column=0, sticky="w", pady=(6, 0))
-
-        ttk.Button(
-            wall, text="Show All Text",
-            command=self._run_ocr_dump,
-        ).grid(row=1, column=1, sticky="w", padx=6, pady=(6, 0))
 
         self._test_wall_result = tk.StringVar(value="\u2014")
         ttk.Label(
@@ -886,19 +881,27 @@ class SetupPanel:
             self._test_click_result.set(f"\u2717 Error: {exc}")
 
     # ==================================================================
-    #  Test-tab wall OCR
+    #  Test-tab wall template matching
     # ==================================================================
 
-    def _run_wall_ocr_test(self) -> None:
-        """Search the entire screen for 'Wall' text using OCR."""
-        self._test_wall_result.set("Scanning screen with OCR...")
+    def _run_wall_template_test(self) -> None:
+        """Search the screen for the 'Wall' template image."""
+        tpl = self.config["templates"].get("wall_text")
+        if not tpl or not os.path.isfile(tpl):
+            self._test_wall_result.set(
+                "\u2717  No wall template captured. "
+                "Go to Detection tab \u2192 capture 'Wall Text' first."
+            )
+            return
+
+        self._test_wall_result.set("Matching wall template...")
         self.root.attributes("-alpha", self._CAPTURE_ALPHA)
         self.root.update()
-        self.root.after(400, self._do_wall_ocr_test)
+        self.root.after(400, lambda: self._do_wall_template_test(tpl))
 
-    def _do_wall_ocr_test(self) -> None:
+    def _do_wall_template_test(self, tpl: str) -> None:
         try:
-            pos = find_text_on_screen("Wall")
+            pos = find_wall_on_screen(tpl)
             self.root.attributes("-alpha", self._WINDOW_ALPHA)
             if pos:
                 self._test_wall_result.set(
@@ -910,35 +913,7 @@ class SetupPanel:
                 )
         except Exception as exc:
             self.root.attributes("-alpha", self._WINDOW_ALPHA)
-            self._test_wall_result.set(f"\u2717  OCR error: {exc}")
-
-    def _run_ocr_dump(self) -> None:
-        """Show all text recognised on screen (debugging aid)."""
-        self._test_wall_result.set("Reading all text on screen...")
-        self.root.attributes("-alpha", self._CAPTURE_ALPHA)
-        self.root.update()
-        self.root.after(400, self._do_ocr_dump)
-
-    def _do_ocr_dump(self) -> None:
-        try:
-            words = find_all_text()
-            self.root.attributes("-alpha", self._WINDOW_ALPHA)
-            if not words:
-                self._test_wall_result.set("No text detected on screen")
-                return
-
-            # Show first 15 words with confidence
-            preview = [
-                f"{w['text']}({w['conf']}%)" for w in words[:15]
-            ]
-            remaining = max(0, len(words) - 15)
-            text = "  ".join(preview)
-            if remaining:
-                text += f"  ... +{remaining} more"
-            self._test_wall_result.set(text)
-        except Exception as exc:
-            self.root.attributes("-alpha", self._WINDOW_ALPHA)
-            self._test_wall_result.set(f"\u2717  OCR error: {exc}")
+            self._test_wall_result.set(f"\u2717  Detection error: {exc}")
 
     # ==================================================================
     #  Bot control
