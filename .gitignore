@@ -10,3 +10,5 @@ build/
 debug_output/
 .idea/
 .vscode/
+config.json
+img/
