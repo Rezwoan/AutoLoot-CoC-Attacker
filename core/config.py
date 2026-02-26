@@ -100,6 +100,7 @@ def default_config() -> Dict[str, Any]:
         "templates": templates,
         "settings": {
             "troop_count": 40,
+            "spell_count": 11,
         },
     }
 

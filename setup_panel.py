@@ -318,6 +318,7 @@ class SetupPanel:
         # Bot settings -------------------------------------------------
         self._total_attacks = tk.IntVar(value=10)
         self._troop_count = tk.IntVar(value=self.config.get("settings", {}).get("troop_count", 40))
+        self._spell_count = tk.IntVar(value=self.config.get("settings", {}).get("spell_count", 11))
         self._wall_enabled = tk.BooleanVar(value=False)
         self._wall_every = tk.IntVar(value=5)
         self._attacks_done = 0
@@ -493,6 +494,18 @@ class SetupPanel:
             textvariable=self._troop_count,
         ).pack(side="left")
         ttk.Label(tc_frame, text=" (min 4)", foreground="gray").pack(side="left")
+
+        r += 1
+        ttk.Label(atk, text="Spell Count:").grid(
+            row=r, column=0, sticky="w", pady=(4, 0)
+        )
+        sc_frame = ttk.Frame(atk)
+        sc_frame.grid(row=r, column=1, sticky="w", padx=6, pady=(4, 0))
+        ttk.Spinbox(
+            sc_frame, from_=1, to=50, width=6,
+            textvariable=self._spell_count,
+        ).pack(side="left")
+        ttk.Label(sc_frame, text=" total spells", foreground="gray").pack(side="left")
 
         r += 1
         ttk.Checkbutton(
@@ -983,6 +996,9 @@ class SetupPanel:
             # Save troop_count into config before passing it
             self.config.setdefault("settings", {})["troop_count"] = (
                 self._troop_count.get()
+            )
+            self.config["settings"]["spell_count"] = (
+                self._spell_count.get()
             )
             self._auto_save()
 

@@ -169,19 +169,43 @@ def run_single_attack(
     # ── 4. Deploy spells ──────────────────────────────────────────────
     spell_slot = _pos(config, "spell")
     spell_targets = [
-        _pos(config, "spell_target_left"),
-        _pos(config, "spell_target_center"),
-        _pos(config, "spell_target_right"),
+        ("left",   _pos(config, "spell_target_left")),
+        ("center", _pos(config, "spell_target_center")),
+        ("right",  _pos(config, "spell_target_right")),
     ]
-    spell_targets = [s for s in spell_targets if s]
+    spell_targets = [(name, pos) for name, pos in spell_targets if pos]
+    spell_count = config.get("settings", {}).get("spell_count", 11)
+    siege_deploy = _pos(config, "siege_deploy")
 
-    if spell_slot and spell_targets:
-        log(f"Deploying spells at {len(spell_targets)} locations...")
+    if spell_slot and spell_targets and spell_count > 0:
+        num_targets = len(spell_targets)
+
+        # Sort targets by distance to siege deploy (closest last = gets remainder)
+        if siege_deploy:
+            def _dist(t):
+                pos = t[1]
+                return math.hypot(pos[0] - siege_deploy[0], pos[1] - siege_deploy[1])
+            spell_targets.sort(key=_dist, reverse=True)  # farthest first
+            # Now closest to siege is last — it gets the smaller share
+            # We want closest to get MORE, so: closest first for remainder
+            # Reverse: closest first gets extra via remainder distribution
+            spell_targets.sort(key=_dist)  # closest first
+
+        # Distribute: e.g. 11 across 3 → 4+4+3, closest side gets extra
+        base = spell_count // num_targets
+        remainder = spell_count % num_targets
+        distribution = []
+        for i, (name, pos) in enumerate(spell_targets):
+            count = base + (1 if i < remainder else 0)
+            distribution.append((name, pos, count))
+
+        log(f"Deploying {spell_count} spells: {', '.join(f'{c}×{n}' for n, _, c in distribution)}")
         click(*spell_slot)
         time.sleep(0.3)
-        for st in spell_targets:
-            click(*st, delay=0.15)
-            time.sleep(0.2)
+        for name, pos, count in distribution:
+            for _ in range(count):
+                click(*pos, duration=0.02, delay=0.08)
+            time.sleep(0.15)
         time.sleep(0.3)
     _honour_pause()
     if _check_stop():
@@ -189,7 +213,6 @@ def run_single_attack(
 
     # ── 5. Deploy siege ───────────────────────────────────────────────
     siege_slot = _pos(config, "siege")
-    siege_deploy = _pos(config, "siege_deploy")
 
     if siege_slot and siege_deploy:
         log("Deploying siege machine...")
@@ -291,7 +314,7 @@ def run_single_attack(
             if _check_stop():
                 break
             _honour_pause()
-            if is_visible(fifty_tpl, confidence=0.85):
+            if is_visible(fifty_tpl, confidence=0.93):
                 got_fifty = True
                 elapsed = time.time() - start
                 log(f"✓ 50% detected after {elapsed:.0f}s — waiting 3 s...")
