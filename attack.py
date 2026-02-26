@@ -25,6 +25,7 @@ to do a wall upgrade or loop another attack.
 
 import math
 import os
+import random
 import time
 import threading
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -317,8 +318,9 @@ def run_single_attack(
             if is_visible(fifty_tpl, confidence=0.93):
                 got_fifty = True
                 elapsed = time.time() - start
-                log(f"✓ 50% detected after {elapsed:.0f}s — waiting 3 s...")
-                time.sleep(3.0)
+                wait = random.uniform(5.0, 10.0)
+                log(f"✓ 50% detected after {elapsed:.0f}s — waiting {wait:.1f}s...")
+                time.sleep(wait)
                 break
             time.sleep(1.0)
 
